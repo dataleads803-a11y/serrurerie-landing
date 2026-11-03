@@ -1,1 +1,177 @@
 
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recherche de Serrurier</title>
+    
+    <!-- SEO (Le titre sera mis à jour par le JS) -->
+    <meta name="description" content="Besoin d'un serrurier ? Décrivez votre besoin et soyez mis en relation avec un professionnel.">
+    
+    <!-- Lien vers ton CSS -->
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- Script reCAPTCHA v3 (⚠️ REMPLACE TA_CLE_SITE_PAR_LA_SITE_KEY) -->
+    <script src="https://www.google.com/recaptcha/api.js?render=COLLE_ICI_TA_SITE_KEY"></script>
+</head>
+<body>
+
+    <!-- HEADER -->
+    <header class="header">
+        <div class="logo">
+            <span>🔧 SerrurierExpress</span>
+        </div>
+        <div class="mention">
+            Service de mise en relation
+        </div>
+    </header>
+
+    <!-- HERO SECTION -->
+    <section class="hero">
+        <h1>Besoin d'un serrurier à <span class="city-name">votre ville</span> ?</h1>
+        <p>Décrivez votre besoin et soyez mis en relation avec un professionnel.</p>
+        
+        <div class="reassurance-points">
+            <span>✅ Demande gratuite</span>
+            <span>✅ Sans engagement</span>
+            <span>✅ Mise en relation rapide</span>
+        </div>
+        
+        <a href="#formulaire" class="btn-primary">Trouver un serrurier à <span class="city-name">votre ville</span></a>
+    </section>
+
+    <!-- FORMULAIRE -->
+    <section id="formulaire" class="form-section">
+        <h2>Décrivez votre urgence</h2>
+        
+        <form id="lead-form">
+            <!-- Champs cachés (tracking et sécurité) -->
+            <input type="hidden" id="hidden-ville" name="ville" value="">
+            <input type="hidden" id="form-loaded-at" name="formLoadedAt" value="">
+            
+            <!-- Honeypot (champ invisible pour les robots) -->
+            <div class="hp-field" aria-hidden="true">
+                <label for="website">Ne pas remplir ce champ</label>
+                <input type="text" id="website" name="website" autocomplete="off" tabindex="-1">
+            </div>
+
+            <!-- Champs visibles -->
+            <div class="form-group">
+                <label for="probleme">Type de problème *</label>
+                <select id="probleme" name="probleme" required>
+                    <option value="">-- Choisissez --</option>
+                    <option value="Porte claquée">Porte claquée</option>
+                    <option value="Porte verrouillée">Porte verrouillée</option>
+                    <option value="Perte de clés">Perte de clés</option>
+                    <option value="Serrure bloquée">Serrure bloquée</option>
+                    <option value="Changement de serrure">Changement de serrure</option>
+                    <option value="Autre besoin">Autre besoin</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="logement">Type de logement *</label>
+                <select id="logement" name="logement" required>
+                    <option value="">-- Choisissez --</option>
+                    <option value="Appartement">Appartement</option>
+                    <option value="Maison">Maison</option>
+                    <option value="Local professionnel">Local professionnel</option>
+                    <option value="Autre">Autre</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="codePostal">Code postal *</label>
+                <input type="text" id="codePostal" name="codePostal" pattern="[0-9]{5}" maxlength="5" placeholder="Ex: 34000" required>
+            </div>
+
+            <div class="form-group">
+                <label for="prenom">Prénom *</label>
+                <input type="text" id="prenom" name="prenom" placeholder="Votre prénom" required>
+            </div>
+
+            <div class="form-group">
+                <label for="telephone">Numéro de téléphone *</label>
+                <input type="tel" id="telephone" name="telephone" placeholder="Ex: 06 12 34 56 78" required>
+            </div>
+
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="consent" name="consent" required>
+                <label for="consent">
+                    J'accepte que mes coordonnées soient transmises à des professionnels partenaires. <a href="#" target="_blank">Politique de confidentialité</a>.
+                </label>
+            </div>
+
+            <button type="submit" id="submit-btn" class="btn-submit">Envoyer ma demande à <span class="city-name">votre ville</span></button>
+            
+            <!-- Messages -->
+            <div id="form-status" class="form-status" style="display:none;"></div>
+        </form>
+    </section>
+
+    <!-- COMMENT ÇA MARCHE -->
+    <section class="how-it-works">
+        <h2>Comment ça marche ?</h2>
+        <div class="steps">
+            <div class="step">
+                <div class="step-num">1</div>
+                <p>Vous décrivez votre besoin.</p>
+            </div>
+            <div class="step">
+                <div class="step-num">2</div>
+                <p>Votre demande est transmise.</p>
+            </div>
+            <div class="step">
+                <div class="step-num">3</div>
+                <p>Un professionnel partenaire peut vous contacter.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- RÉASSURANCE -->
+    <section class="reassurance">
+        <h2>En toute transparence</h2>
+        <ul>
+            <li>Ce service est 100% gratuit pour le demandeur.</li>
+            <li>Aucune obligation d'accepter un devis.</li>
+            <li>Nous vous mettons en relation avec des professionnels indépendants.</li>
+            <li>Les délais d'intervention ne sont pas garantis et dépendent des artisans.</li>
+        </ul>
+    </section>
+
+    <!-- FAQ -->
+    <section class="faq">
+        <h2>Questions fréquentes</h2>
+        <details>
+            <summary>Combien coûte la demande ?</summary>
+            <p>La demande est totalement gratuite pour vous.</p>
+        </details>
+        <details>
+            <summary>Suis-je obligé d'accepter un devis ?</summary>
+            <p>Non, vous êtes libre d'accepter ou de refuser la proposition du professionnel.</p>
+        </details>
+        <details>
+            <summary>Qui va me contacter ?</summary>
+            <p>Un professionnel indépendant de notre réseau, situé près de chez vous.</p>
+        </details>
+        <details>
+            <summary>Combien de temps faut-il pour être contacté ?</summary>
+            <p>Nous transmettons votre demande immédiatement, mais le délai de rappel dépend de la disponibilité des artisans.</p>
+        </details>
+        <details>
+            <summary>Dans quelles villes le service est-il disponible ?</summary>
+            <p>Le service est disponible dans de nombreuses villes de France (Montpellier, Nîmes, Béziers, Sète, Narbonne, etc.).</p>
+        </details>
+    </section>
+
+    <!-- FOOTER -->
+    <footer>
+        <p>&copy; 2026 SerrurierExpress. Tous droits réservés.</p>
+        <p>Mise en relation avec des serruriers indépendants.</p>
+    </footer>
+
+    <!-- Lien vers ton JavaScript -->
+    <script src="script.js"></script>
+</body>
+</html>
