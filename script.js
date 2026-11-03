@@ -33,32 +33,32 @@ async function initCity() {
         }
     } 
     // --- CAS 2 : Pas de ville dans l'URL, on tente la détection par IP ---
-    else {
-        try {
-            // Appel à une API gratuite de géolocalisation IP
-            const response = await fetch('https://ipapi.co/json/');
-            const data = await response.json();
+    // --- CAS 2 : Pas de ville dans l'URL, on tente la détection par IP ---
+else {
+    try {
+        // Appel à une API gratuite de géolocalisation IP
+        const response = await fetch('https://ipapi.co/json/');
+        const data = await response.json();
+        
+        // Si l'API trouve une ville
+        if (data && data.city) {
+            const detectedCity = data.city.trim();
+            // On vérifie si cette ville est dans notre liste autorisée
+            const matchedCity = ALLOWED_CITIES.find(
+                c => c.toLowerCase() === detectedCity.toLowerCase()
+            );
             
-            // Si l'API trouve une ville
-            if (data && data.city) {
-                // On vérifie si cette ville est dans notre liste autorisée
-                const detectedCity = data.city.trim();
-                const matchedCity = ALLOWED_CITIES.find(
-                    c => c.toLowerCase() === detectedCity.toLowerCase()
-                );
-                
-                if (matchedCity) {
-                    finalCity = matchedCity;
-                } else {
-                    // Si la ville détectée n'est pas dans la liste (ex: Paris), on l'accepte quand même 
-                    // car c'est une vraie ville issue d'une vraie IP.
-                    finalCity = detectedCity;
-                }
+            if (matchedCity) {
+                // La ville détectée est autorisée, on l'utilise
+                finalCity = matchedCity;
             }
-        } catch (error) {
-            console.warn("Détection IP impossible, on garde la ville par défaut.");
+            // Si la ville détectée n'est pas dans la liste, on ne fait rien.
+            // finalCity reste sur DEFAULT_CITY ("votre ville")
         }
+    } catch (error) {
+        console.warn("Détection IP impossible, on garde la ville par défaut.");
     }
+}
 
     // --- MISE À JOUR DE LA PAGE ---
     document.querySelectorAll('.city-name').forEach(el => {
