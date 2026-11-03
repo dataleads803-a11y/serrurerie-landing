@@ -15,13 +15,14 @@ const ALLOWED_CITIES = ['Montpellier', 'Nîmes', 'Béziers', 'Sète', 'Narbonne'
 const DEFAULT_CITY = 'votre ville';
 
 // ============================================================
-//  1. GESTION DE LA VILLE DYNAMIQUE
+//  1. GESTION DE LA VILLE (URL OU DÉTECTION AUTOMATIQUE)
 // ============================================================
-function initCity() {
+async function initCity() {
     const urlParams = new URLSearchParams(window.location.search);
     let cityParam = urlParams.get('ville');
     let finalCity = DEFAULT_CITY;
 
+    // --- CAS 1 : La ville est dans l'URL (Priorité absolue pour Google Ads) ---
     if (cityParam) {
         cityParam = cityParam.trim();
         const matchedCity = ALLOWED_CITIES.find(
@@ -30,8 +31,36 @@ function initCity() {
         if (matchedCity) {
             finalCity = matchedCity;
         }
+    } 
+    // --- CAS 2 : Pas de ville dans l'URL, on tente la détection par IP ---
+    else {
+        try {
+            // Appel à une API gratuite de géolocalisation IP
+            const response = await fetch('https://ipapi.co/json/');
+            const data = await response.json();
+            
+            // Si l'API trouve une ville
+            if (data && data.city) {
+                // On vérifie si cette ville est dans notre liste autorisée
+                const detectedCity = data.city.trim();
+                const matchedCity = ALLOWED_CITIES.find(
+                    c => c.toLowerCase() === detectedCity.toLowerCase()
+                );
+                
+                if (matchedCity) {
+                    finalCity = matchedCity;
+                } else {
+                    // Si la ville détectée n'est pas dans la liste (ex: Paris), on l'accepte quand même 
+                    // car c'est une vraie ville issue d'une vraie IP.
+                    finalCity = detectedCity;
+                }
+            }
+        } catch (error) {
+            console.warn("Détection IP impossible, on garde la ville par défaut.");
+        }
     }
 
+    // --- MISE À JOUR DE LA PAGE ---
     document.querySelectorAll('.city-name').forEach(el => {
         el.textContent = finalCity;
     });
@@ -57,7 +86,6 @@ function initTimer() {
     }
 }
 
-// ⚠️ CORRECTION : Utilisation de tirets '-' au lieu de '_' pour être accepté par Apps Script
 function generateSubmissionId() {
     return 'sub-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
 }
@@ -66,6 +94,7 @@ function generateSubmissionId() {
 //  3. ENVOI DU FORMULAIRE
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
+    // On lance la détection de la ville
     initCity();
     initTimer();
 
@@ -73,7 +102,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const submitBtn = document.getElementById('submit-btn');
     const statusDiv = document.getElementById('form-status');
     
-    // ⚠️ CORRECTION : On récupère le texte du bouton en dehors de l'événement pour qu'il soit accessible partout
     const originalBtnText = submitBtn ? submitBtn.innerHTML : 'Envoyer';
 
     if (!form) return;
@@ -124,7 +152,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 probleme: formData.get('probleme'),
                 logement: formData.get('logement'),
                 codePostal: formData.get('codePostal'),
-                ville: formData.get('ville'),
+                ville: formData.get('ville'), // Récupère la ville remplie par initCity()
                 consent: formData.get('consent') === 'on' ? true : false,
                 
                 honeypot: honeypotValue,
@@ -172,6 +200,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function resetButton() {
         submitBtn.disabled = false;
-        submitBtn.innerHTML = originalBtnText; // Utilisation de innerHTML pour garder la balise <span>
+        submitBtn.innerHTML = originalBtnText;
     }
 });
