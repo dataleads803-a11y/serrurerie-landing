@@ -8,63 +8,37 @@ const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz9Xs5z4WJknj
 // ⚠️ VÉRIFIE BIEN TA SITE KEY ICI
 const RECAPTCHA_SITE_KEY = '6Le4dQ4uAAAAAJrt1NNsnR72gFqNrQOO2ZpGmjs7';
 
-// Ville par défaut si tout échoue
+// Ville par défaut si aucune ville n'est trouvée
 const DEFAULT_CITY = 'votre ville';
 
 // ============================================================
-//  1. GESTION DE LA VILLE (URL > GPS > IP > Défaut)
+//  1. GESTION DE LA VILLE (URL OU DÉTECTION AUTOMATIQUE FR)
 // ============================================================
 async function initCity() {
     const urlParams = new URLSearchParams(window.location.search);
     let cityParam = urlParams.get('ville');
     let finalCity = DEFAULT_CITY;
 
-    // --- CAS 1 : La ville est dans l'URL (Priorité absolue Google Ads) ---
+    // --- CAS 1 : La ville est dans l'URL (Priorité absolue pour Google Ads) ---
     if (cityParam && cityParam.trim() !== '') {
+        // On nettoie un peu pour éviter les injections HTML
         cityParam = cityParam.trim().substring(0, 50);
+        
+        // On met la première lettre en majuscule (ex: "lyon" -> "Lyon")
         finalCity = cityParam.charAt(0).toUpperCase() + cityParam.slice(1);
     } 
-    // --- CAS 2 : Pas d'URL, on tente le GPS puis l'IP ---
+    // --- CAS 2 : Pas de ville dans l'URL, on tente la détection par IP ---
     else {
         try {
-            // A. Tentative GPS (Précision maximale)
-            const position = await new Promise((resolve, reject) => {
-                // Timeout de 5 secondes au cas où l'utilisateur ignore la popup
-                navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
-            });
+            const response = await fetch('https://ipapi.co/json/');
+            const data = await response.json();
             
-            const lat = position.coords.latitude;
-            const lon = position.coords.longitude;
-            
-            // B. Géocodage inverse (Coordonnées -> Nom de ville) via l'API du gouvernement
-            const geoResponse = await fetch(`https://api-adresse.data.gouv.fr/reverse/?lon=${lon}&lat=${lat}`);
-            const geoData = await geoResponse.json();
-            
-            // L'API renvoie une liste de résultats, on prend le premier
-            if (geoData.features && geoData.features.length > 0) {
-                // On récupère le nom de la ville (ou de la commune)
-                const detectedCity = geoData.features[0].properties.city || geoData.features[0].properties.municipality;
-                if (detectedCity) {
-                    finalCity = detectedCity;
-                    console.log("Ville détectée par GPS:", finalCity);
-                }
+            // On vérifie que l'utilisateur est bien en France (code 'FR')
+            if (data && data.country_code === 'FR' && data.city) {
+                finalCity = data.city.trim();
             }
-        } catch (gpsError) {
-            // C. Si le GPS est refusé ou échoue, on tente l'IP
-            console.warn("GPS refusé ou échoué, tentative par IP...", gpsError.message);
-            
-            try {
-                const ipResponse = await fetch('https://ipapi.co/json/');
-                const ipData = await ipResponse.json();
-                
-                // On vérifie que l'utilisateur est bien en France
-                if (ipData && ipData.country_code === 'FR' && ipData.city) {
-                    finalCity = ipData.city.trim();
-                    console.log("Ville détectée par IP:", finalCity);
-                }
-            } catch (ipError) {
-                console.warn("Détection IP impossible aussi, on garde la ville par défaut.");
-            }
+        } catch (error) {
+            console.warn("Détection IP impossible, on garde la ville par défaut.");
         }
     }
 
@@ -102,7 +76,7 @@ function generateSubmissionId() {
 //  3. ENVOI DU FORMULAIRE
 // ============================================================
 document.addEventListener('DOMContentLoaded', async () => {
-    // On attend la détection de la ville avant de préparer le formulaire
+    // On attend que la ville soit détectée avant d'initialiser le reste
     await initCity(); 
     initTimer();
 
@@ -167,7 +141,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ...trackingData
             };
 
-            // --- Envoi vers Google Apps Script ---
+            // --- Envoi ---
             const response = await fetch(GOOGLE_SCRIPT_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
