@@ -1,19 +1,17 @@
-
 // ============================================================
 //  CONFIGURATION DU SITE
 // ============================================================
 
-// ⚠️ COLLE TON URL D'APPLICATION WEB GOOGLE APPS SCRIPT ICI
-// (Celle qui se termine par /exec, récupérée au Bloc 5)
+// ⚠️ VÉRIFIE BIEN QUE TON URL SE TERMINE PAR /exec
 const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz9Xs5z4WJknjoU5IVQU9oCcUJEv-zTU3u0FXNX7uwJUaymSIm4_lE40uzd6YBN6Evy/exec';
 
-// ⚠️ COLLE TA CLÉ PUBLIQUE (SITE KEY) RECAPTCHA ICI
+// ⚠️ VÉRIFIE BIEN TA SITE KEY ICI
 const RECAPTCHA_SITE_KEY = '6Le4dQ4uAAAAAJrt1NNsnR72gFqNrQOO2ZpGmjs7';
 
-// Liste des villes autorisées (tu peux en ajouter d'autres)
+// Liste des villes autorisées
 const ALLOWED_CITIES = ['Montpellier', 'Nîmes', 'Béziers', 'Sète', 'Narbonne'];
 
-// Ville par défaut si aucune ville valide n'est trouvée dans l'URL
+// Ville par défaut
 const DEFAULT_CITY = 'votre ville';
 
 // ============================================================
@@ -25,32 +23,24 @@ function initCity() {
     let finalCity = DEFAULT_CITY;
 
     if (cityParam) {
-        // Nettoyage basique de la valeur reçue
         cityParam = cityParam.trim();
-        
-        // Vérification que la ville est bien dans notre liste autorisée
-        // (insensible à la casse pour éviter les erreurs d'URL)
         const matchedCity = ALLOWED_CITIES.find(
             c => c.toLowerCase() === cityParam.toLowerCase()
         );
-
         if (matchedCity) {
             finalCity = matchedCity;
         }
     }
 
-    // Mise à jour des textes sur la page (H1, sous-titres, boutons)
     document.querySelectorAll('.city-name').forEach(el => {
         el.textContent = finalCity;
     });
 
-    // Mise à jour du champ caché du formulaire
     const hiddenVilleInput = document.getElementById('hidden-ville');
     if (hiddenVilleInput) {
         hiddenVilleInput.value = finalCity;
     }
 
-    // Mise à jour du titre de la page (SEO)
     document.title = `Serrurier à ${finalCity} - Demande gratuite`;
 }
 
@@ -60,7 +50,6 @@ function initCity() {
 let formLoadedAt;
 
 function initTimer() {
-    // On enregistre l'heure d'arrivée sur la page
     formLoadedAt = Date.now();
     const hiddenTimeInput = document.getElementById('form-loaded-at');
     if (hiddenTimeInput) {
@@ -68,9 +57,9 @@ function initTimer() {
     }
 }
 
-// Génère un ID unique pour éviter les doubles soumissions
+// ⚠️ CORRECTION : Utilisation de tirets '-' au lieu de '_' pour être accepté par Apps Script
 function generateSubmissionId() {
-    return 'sub_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    return 'sub-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
 }
 
 // ============================================================
@@ -83,28 +72,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('lead-form');
     const submitBtn = document.getElementById('submit-btn');
     const statusDiv = document.getElementById('form-status');
+    
+    // ⚠️ CORRECTION : On récupère le texte du bouton en dehors de l'événement pour qu'il soit accessible partout
+    const originalBtnText = submitBtn ? submitBtn.innerHTML : 'Envoyer';
 
     if (!form) return;
 
     form.addEventListener('submit', async (e) => {
-        e.preventDefault(); // Empêche le rechargement de la page
+        e.preventDefault();
 
-        // --- A. Vérification Honeypot (Anti-bot) ---
+        // --- A. Vérification Honeypot ---
         const honeypotValue = document.getElementById('website').value;
         if (honeypotValue.trim() !== '') {
-            // C'est un robot, on fait semblant que tout va bien mais on n'envoie rien
             showStatus('Une erreur est survenue. Veuillez réessayer.', 'error');
             return;
         }
 
-        // --- B. Préparation de l'interface (Chargement) ---
+        // --- B. Préparation de l'interface ---
         submitBtn.disabled = true;
-        const originalBtnText = submitBtn.textContent;
         submitBtn.textContent = 'Envoi en cours...';
         statusDiv.style.display = 'none';
 
         try {
-            // --- C. Génération du token reCAPTCHA v3 ---
+            // --- C. Génération du token reCAPTCHA ---
             const recaptchaToken = await new Promise((resolve, reject) => {
                 grecaptcha.ready(() => {
                     grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'submit' })
@@ -113,7 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             });
 
-            // --- D. Récupération des paramètres de tracking (Google Ads) ---
+            // --- D. Récupération des paramètres de tracking ---
             const urlParams = new URLSearchParams(window.location.search);
             const trackingData = {
                 gclid: urlParams.get('gclid') || '',
@@ -126,7 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 utm_content: urlParams.get('utm_content') || ''
             };
 
-            // --- E. Construction des données à envoyer ---
+            // --- E. Construction des données ---
             const formData = new FormData(form);
             const payload = {
                 prenom: formData.get('prenom'),
@@ -134,27 +124,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 probleme: formData.get('probleme'),
                 logement: formData.get('logement'),
                 codePostal: formData.get('codePostal'),
-                ville: formData.get('ville'), // Rempli par initCity()
+                ville: formData.get('ville'),
                 consent: formData.get('consent') === 'on' ? true : false,
                 
-                // Sécurité
                 honeypot: honeypotValue,
                 formLoadedAt: formLoadedAt,
                 submissionId: generateSubmissionId(),
                 recaptchaToken: recaptchaToken,
                 
-                // Tracking
                 pageUrl: window.location.href,
                 ...trackingData
             };
 
             // --- F. Envoi vers Google Apps Script ---
-            // Note : On utilise text/plain pour éviter les problèmes de CORS avec Apps Script
             const response = await fetch(GOOGLE_SCRIPT_URL, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'text/plain;charset=utf-8',
-                },
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify(payload)
             });
 
@@ -162,12 +147,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // --- G. Traitement de la réponse ---
             if (result.success === true) {
-                // Succès : on cache le formulaire et on affiche le message
                 form.reset();
                 form.style.display = 'none';
                 showStatus(`✅ Merci ${payload.prenom} ! Votre demande a bien été transmise. Un professionnel vous contactera rapidement.`, 'success');
             } else {
-                // Erreur serveur (ex: captcha score trop bas, champ manquant)
                 console.error('Erreur backend:', result);
                 showStatus('Une erreur est survenue lors de l\'envoi. Vérifiez vos informations et réessayez.', 'error');
                 resetButton();
@@ -180,7 +163,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Fonction utilitaire pour afficher les messages
     function showStatus(message, type) {
         statusDiv.textContent = message;
         statusDiv.className = `form-status status-${type}`;
@@ -188,9 +170,8 @@ document.addEventListener('DOMContentLoaded', () => {
         statusDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
-    // Fonction pour réactiver le bouton en cas d'erreur
     function resetButton() {
         submitBtn.disabled = false;
-        submitBtn.textContent = originalBtnText;
+        submitBtn.innerHTML = originalBtnText; // Utilisation de innerHTML pour garder la balise <span>
     }
 });
