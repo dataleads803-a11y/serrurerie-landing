@@ -1,46 +1,48 @@
 // ============================================================
 //  CONFIGURATION DU SITE
 // ============================================================
+
+// ⚠️ VÉRIFIE BIEN QUE TON URL SE TERMINE PAR /exec
 const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz9Xs5z4WJknjoU5IVQU9oCcUJEv-zTU3u0FXNX7uwJUaymSIm4_lE40uzd6YBN6Evy/exec';
+
+// ⚠️ VÉRIFIE BIEN TA SITE KEY ICI
 const RECAPTCHA_SITE_KEY = '6Le4dQ4uAAAAAJrt1NNsnR72gFqNrQOO2ZpGmjs7';
 
-const ALLOWED_CITIES = ['Montpellier', 'Nîmes', 'Béziers', 'Sète', 'Narbonne'];
+// Ville par défaut si aucune ville n'est trouvée
 const DEFAULT_CITY = 'votre ville';
 
 // ============================================================
-//  1. GESTION DE LA VILLE (URL OU DÉTECTION AUTOMATIQUE)
+//  1. GESTION DE LA VILLE (URL OU DÉTECTION AUTOMATIQUE FR)
 // ============================================================
 async function initCity() {
     const urlParams = new URLSearchParams(window.location.search);
     let cityParam = urlParams.get('ville');
     let finalCity = DEFAULT_CITY;
 
-    // CAS 1 : La ville est dans l'URL (Priorité absolue)
-    if (cityParam) {
-        cityParam = cityParam.trim();
-        const matchedCity = ALLOWED_CITIES.find(c => c.toLowerCase() === cityParam.toLowerCase());
-        if (matchedCity) {
-            finalCity = matchedCity;
-        }
+    // --- CAS 1 : La ville est dans l'URL (Priorité absolue pour Google Ads) ---
+    if (cityParam && cityParam.trim() !== '') {
+        // On nettoie un peu pour éviter les injections HTML
+        cityParam = cityParam.trim().substring(0, 50);
+        
+        // On met la première lettre en majuscule (ex: "lyon" -> "Lyon")
+        finalCity = cityParam.charAt(0).toUpperCase() + cityParam.slice(1);
     } 
-    // CAS 2 : Pas de ville dans l'URL, on tente la détection par IP
+    // --- CAS 2 : Pas de ville dans l'URL, on tente la détection par IP ---
     else {
         try {
             const response = await fetch('https://ipapi.co/json/');
             const data = await response.json();
             
-            console.log("L'API IP a détecté :", data.city); // Pour le debug
-
-            if (data && data.city) {
-                // Pour ce test, on accepte la ville détectée quoi qu'il arrive
+            // On vérifie que l'utilisateur est bien en France (code 'FR')
+            if (data && data.country_code === 'FR' && data.city) {
                 finalCity = data.city.trim();
             }
         } catch (error) {
-            console.warn("Détection IP impossible", error);
+            console.warn("Détection IP impossible, on garde la ville par défaut.");
         }
     }
 
-    // Mise à jour de la page
+    // --- MISE À JOUR DE LA PAGE ---
     document.querySelectorAll('.city-name').forEach(el => {
         el.textContent = finalCity;
     });
@@ -49,6 +51,7 @@ async function initCity() {
     if (hiddenVilleInput) {
         hiddenVilleInput.value = finalCity;
     }
+
     document.title = `Serrurier à ${finalCity} - Demande gratuite`;
 }
 
@@ -56,11 +59,15 @@ async function initCity() {
 //  2. SUIVI DU TEMPS ET DE L'ID DE SOUMISSION
 // ============================================================
 let formLoadedAt;
+
 function initTimer() {
     formLoadedAt = Date.now();
     const hiddenTimeInput = document.getElementById('form-loaded-at');
-    if (hiddenTimeInput) hiddenTimeInput.value = formLoadedAt;
+    if (hiddenTimeInput) {
+        hiddenTimeInput.value = formLoadedAt;
+    }
 }
+
 function generateSubmissionId() {
     return 'sub-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
 }
@@ -69,7 +76,7 @@ function generateSubmissionId() {
 //  3. ENVOI DU FORMULAIRE
 // ============================================================
 document.addEventListener('DOMContentLoaded', async () => {
-    // ⚠️ AJOUT DE "await" ICI pour être sûr que la ville est détectée AVANT tout
+    // On attend que la ville soit détectée avant d'initialiser le reste
     await initCity(); 
     initTimer();
 
@@ -83,6 +90,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
+        // --- Vérification Honeypot ---
         const honeypotValue = document.getElementById('website').value;
         if (honeypotValue.trim() !== '') {
             showStatus('Une erreur est survenue. Veuillez réessayer.', 'error');
@@ -94,12 +102,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         statusDiv.style.display = 'none';
 
         try {
+            // --- reCAPTCHA ---
             const recaptchaToken = await new Promise((resolve, reject) => {
                 grecaptcha.ready(() => {
-                    grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'submit' }).then(resolve).catch(reject);
+                    grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'submit' })
+                        .then(resolve).catch(reject);
                 });
             });
 
+            // --- Tracking UTM & GCLID ---
             const urlParams = new URLSearchParams(window.location.search);
             const trackingData = {
                 gclid: urlParams.get('gclid') || '',
@@ -112,6 +123,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 utm_content: urlParams.get('utm_content') || ''
             };
 
+            // --- Construction des données ---
             const formData = new FormData(form);
             const payload = {
                 prenom: formData.get('prenom'),
@@ -129,6 +141,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ...trackingData
             };
 
+            // --- Envoi ---
             const response = await fetch(GOOGLE_SCRIPT_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -140,7 +153,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (result.success === true) {
                 form.reset();
                 form.style.display = 'none';
-                showStatus(`✅ Merci ${payload.prenom} ! Votre demande a bien été transmise.`, 'success');
+                showStatus(`✅ Merci ${payload.prenom} ! Votre demande a bien été transmise à ${payload.ville}.`, 'success');
             } else {
                 console.error('Erreur backend:', result);
                 showStatus('Une erreur est survenue lors de l\'envoi.', 'error');
@@ -159,6 +172,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         statusDiv.style.display = 'block';
         statusDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
+
     function resetButton() {
         submitBtn.disabled = false;
         submitBtn.innerHTML = originalBtnText;
