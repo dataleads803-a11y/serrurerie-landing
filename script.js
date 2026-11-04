@@ -8,11 +8,11 @@ const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz9Xs5z4WJknj
 // ⚠️ VÉRIFIE BIEN TA SITE KEY ICI
 const RECAPTCHA_SITE_KEY = '6Le4dQ4uAAAAAJrt1NNsnR72gFqNrQOO2ZpGmjs7';
 
-// Ville par défaut si aucune ville n'est trouvée
+// Ville par défaut si toutes les méthodes échouent
 const DEFAULT_CITY = 'votre ville';
 
 // ============================================================
-//  1. GESTION DE LA VILLE (URL OU DÉTECTION AUTOMATIQUE FR)
+//  1. GESTION DE LA VILLE (URL > GPS > IP > Défaut)
 // ============================================================
 async function initCity() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -21,24 +21,55 @@ async function initCity() {
 
     // --- CAS 1 : La ville est dans l'URL (Priorité absolue pour Google Ads) ---
     if (cityParam && cityParam.trim() !== '') {
-        // On nettoie un peu pour éviter les injections HTML
         cityParam = cityParam.trim().substring(0, 50);
-        
-        // On met la première lettre en majuscule (ex: "lyon" -> "Lyon")
         finalCity = cityParam.charAt(0).toUpperCase() + cityParam.slice(1);
     } 
-    // --- CAS 2 : Pas de ville dans l'URL, on tente la détection par IP ---
+    // --- CAS 2 : Pas d'URL, on tente une détection en cascade ---
     else {
         try {
-            const response = await fetch('https://ipapi.co/json/');
-            const data = await response.json();
+            // ÉTAPE A : Tentative de géolocalisation via le navigateur
+            // On utilise enableHighAccuracy: false pour maximiser les chances de succès (Wi-Fi/GPS).
+            const position = await new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                    enableHighAccuracy: false, // Recommandé pour la fiabilité
+                    timeout: 8000,             // Laisse plus de temps au GPS
+                    maximumAge: 60000          // Accepte une position vieille de 1 minute max
+                });
+            });
             
-            // On vérifie que l'utilisateur est bien en France (code 'FR')
-            if (data && data.country_code === 'FR' && data.city) {
-                finalCity = data.city.trim();
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            
+            // ÉTAPE B : Géocodage inverse (Coordonnées -> Nom de ville)
+            // Utilisation de l'API officielle du gouvernement français (fiable et gratuite)
+            const geoResponse = await fetch(`https://api-adresse.data.gouv.fr/reverse/?lon=${lon}&lat=${lat}`);
+            const geoData = await geoResponse.json();
+            
+            if (geoData.features && geoData.features.length > 0) {
+                const props = geoData.features[0].properties;
+                // On récupère le nom de la ville (ou de la commune à défaut)
+                const detectedCity = props.city || props.municipality;
+                if (detectedCity) {
+                    finalCity = detectedCity;
+                    console.log("Ville détectée par GPS:", finalCity);
+                }
             }
-        } catch (error) {
-            console.warn("Détection IP impossible, on garde la ville par défaut.");
+        } catch (gpsError) {
+            // Si le GPS échoue, on tente l'IP (ÉTAPE C)
+            console.warn("GPS refusé ou échoué, tentative par IP...", gpsError.message);
+            
+            try {
+                const ipResponse = await fetch('https://ipapi.co/json/');
+                const ipData = await ipResponse.json();
+                
+                // On vérifie que l'utilisateur est bien en France
+                if (ipData && ipData.country_code === 'FR' && ipData.city) {
+                    finalCity = ipData.city.trim();
+                    console.log("Ville détectée par IP:", finalCity);
+                }
+            } catch (ipError) {
+                console.warn("Détection IP impossible aussi, on garde la ville par défaut.");
+            }
         }
     }
 
@@ -76,7 +107,7 @@ function generateSubmissionId() {
 //  3. ENVOI DU FORMULAIRE
 // ============================================================
 document.addEventListener('DOMContentLoaded', async () => {
-    // On attend que la ville soit détectée avant d'initialiser le reste
+    // On attend la détection de la ville avant de préparer le formulaire
     await initCity(); 
     initTimer();
 
@@ -141,7 +172,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ...trackingData
             };
 
-            // --- Envoi ---
+            // --- Envoi vers Google Apps Script ---
             const response = await fetch(GOOGLE_SCRIPT_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
